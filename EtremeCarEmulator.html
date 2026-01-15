@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulatore Auto HTML5</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #222;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #444;
+            pointer-events: none;
+        }
+
+        .stat { font-size: 20px; margin-bottom: 5px; }
+        .stat span { color: #00ff00; font-weight: bold; }
+
+        canvas {
+            background: #333; /* Colore dell'asfalto */
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        .controls-hint {
+            margin-top: 10px;
+            color: #aaa;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <div class="stat">Velocità: <span id="speedDisplay">0</span> km/h</div>
+        <div class="stat">Distanza: <span id="distanceDisplay">0.00</span> km</div>
+        <div class="controls-hint">Usa le <b>Frecce</b> o <b>WASD</b> per guidare</div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Impostazioni canvas
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Stato dell'auto
+        const car = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            width: 40,
+            height: 80,
+            angle: 0,
+            speed: 0,
+            acceleration: 0.2,
+            friction: 0.05,
+            maxSpeed: 10,
+            rotationSpeed: 0.05,
+            totalDistance: 0
+        };
+
+        const keys = {};
+
+        // Gestione Input
+        window.addEventListener('keydown', e => keys[e.key] = true);
+        window.addEventListener('keyup', e => keys[e.key] = false);
+
+        function update() {
+            // Accelerazione e Frenata
+            if (keys['ArrowUp'] || keys['w']) car.speed += car.acceleration;
+            if (keys['ArrowDown'] || keys['s']) car.speed -= car.acceleration;
+
+            // Attrito (rallenta l'auto gradualmente)
+            if (car.speed > 0) car.speed -= car.friction;
+            if (car.speed < 0) car.speed += car.friction;
+            if (Math.abs(car.speed) < car.friction) car.speed = 0;
+
+            // Limite velocità
+            if (car.speed > car.maxSpeed) car.speed = car.maxSpeed;
+            if (car.speed < -car.maxSpeed / 2) car.speed = -car.maxSpeed / 2;
+
+            // Rotazione (solo se l'auto si muove)
+            if (car.speed !== 0) {
+                const direction = car.speed > 0 ? 1 : -1;
+                if (keys['ArrowLeft'] || keys['a']) car.angle -= car.rotationSpeed * direction;
+                if (keys['ArrowRight'] || keys['d']) car.angle += car.rotationSpeed * direction;
+            }
+
+            // Movimento basato sull'angolo
+            car.x += Math.sin(car.angle) * car.speed;
+            car.y -= Math.cos(car.angle) * car.speed;
+
+            // Calcolo distanza (simulata)
+            car.totalDistance += Math.abs(car.speed) / 10000;
+
+            // Bordi dello schermo (teletrasporto continuo)
+            if (car.x > canvas.width) car.x = 0;
+            if (car.x < 0) car.x = canvas.width;
+            if (car.y > canvas.height) car.y = 0;
+            if (car.y < 0) car.y = canvas.height;
+
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('speedDisplay').innerText = Math.round(Math.abs(car.speed) * 20);
+            document.getElementById('distanceDisplay').innerText = car.totalDistance.toFixed(2);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Disegna la "strada" (griglia di riferimento)
+            ctx.strokeStyle = "#444";
+            ctx.lineWidth = 1;
+            for(let i=0; i<canvas.width; i+=100) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+            }
+            for(let i=0; i<canvas.height; i+=100) {
+                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+            }
+
+            // Disegna l'auto
+            ctx.save();
+            ctx.translate(car.x, car.y);
+            ctx.rotate(car.angle);
+            
+            // Corpo auto
+            ctx.fillStyle = "#e74c3c";
+            ctx.fillRect(-car.width/2, -car.height/2, car.width, car.height);
+            
+            // Parabrezza
+            ctx.fillStyle = "#3498db";
+            ctx.fillRect(-car.width/2 + 5, -car.height/2 + 10, car.width - 10, 20);
+
+            // Luci (freni)
+            if(keys['ArrowDown'] || keys['s']) {
+                ctx.fillStyle = "red";
+                ctx.fillRect(-car.width/2, car.height/2 - 5, 10, 5);
+                ctx.fillRect(car.width/2 - 10, car.height/2 - 5, 10, 5);
+            }
+
+            ctx.restore();
+
+            requestAnimationFrame(() => {
+                update();
+                draw();
+            });
+        }
+
+        draw();
+    </script>
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Super Street Racer</title>
+    <style>
+        body { margin: 0; background: #111; overflow: hidden; font-family: 'Courier New', Courier, monospace; }
+        #ui {
+            position: absolute; top: 20px; left: 20px; color: #0f0;
+            background: rgba(0,0,0,0.8); padding: 15px; border: 2px solid #0f0;
+            border-radius: 5px; z-index: 10;
+        }
+        .label { color: #fff; font-size: 12px; text-transform: uppercase; }
+        .value { font-size: 24px; font-weight: bold; display: block; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <span class="label">Velocità</span>
+    <span id="speed" class="value">0</span>
+    <span class="label" style="margin-top:10px; display:block;">Km Percorsi</span>
+    <span id="dist" class="value">0.00</span>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const roadW = 450;
+    const laneW = roadW / 3;
+    let speed = 0;
+    let distance = 0;
+    let offset = 0;
+
+    const player = {
+        x: canvas.width / 2 - 25,
+        y: canvas.height - 150,
+        w: 50,
+        h: 90,
+        color: '#ff0044'
+    };
+
+    const enemies = [];
+    const enemyColors = ['#f1c40f', '#9b59b6', '#3498db', '#e67e22'];
+
+    const keys = {};
+    window.onkeydown = (e) => keys[e.key] = true;
+    window.onkeyup = (e) => keys[e.key] = false;
+
+    function spawnEnemy() {
+        if (Math.random() < 0.02) {
+            const lane = Math.floor(Math.random() * 3);
+            enemies.push({
+                x: (canvas.width / 2 - roadW / 2) + (lane * laneW) + (laneW / 2 - 25),
+                y: -100,
+                w: 50,
+                h: 90,
+                color: enemyColors[Math.floor(Math.random() * enemyColors.length)],
+                speed: 2 + Math.random() * 5
+            });
+        }
+    }
+
+    function drawCar(c, color) {
+        // Ombra
+        ctx.fillStyle = "rgba(0,0,0,0.4)";
+        ctx.fillRect(c.x + 5, c.y + 5, c.w, c.h);
+        // Corpo
+        ctx.fillStyle = color;
+        ctx.fillRect(c.x, c.y, c.w, c.h);
+        // Vetri
+        ctx.fillStyle = "#222";
+        ctx.fillRect(c.x + 5, c.y + 15, c.w - 10, 25);
+        // Fari anteriori
+        ctx.fillStyle = "#ffffaa";
+        ctx.fillRect(c.x + 5, c.y, 10, 5);
+        ctx.fillRect(c.x + c.w - 15, c.y, 10, 5);
+    }
+
+    function update() {
+        // Logica accelerazione
+        if (keys['ArrowUp'] || keys['w']) speed += 0.4;
+        else if (keys['ArrowDown'] || keys['s']) speed -= 0.8;
+        else speed -= 0.1;
+
+        if (speed < 0) speed = 0;
+        if (speed > 180) speed = 180;
+
+        // Movimento laterale
+        if (speed > 5) {
+            if (keys['ArrowLeft'] || keys['a']) player.x -= 7;
+            if (keys['ArrowRight'] || keys['d']) player.x += 7;
+        }
+
+        // Limiti strada
+        const leftBound = canvas.width / 2 - roadW / 2;
+        const rightBound = canvas.width / 2 + roadW / 2 - player.w;
+        if (player.x < leftBound) player.x = leftBound;
+        if (player.x > rightBound) player.x = rightBound;
+
+        // Gestione nemici
+        spawnEnemy();
+        enemies.forEach((en, index) => {
+            en.y += (speed * 0.1) + en.speed; // Si muovono in base alla tua velocità
+            
+            // Collisione
+            if (player.x < en.x + en.w && player.x + player.w > en.x &&
+                player.y < en.y + en.h && player.y + player.h > en.y) {
+                speed *= 0.5; // Rallenta drasticamente
+                enemies.splice(index, 1); // Rimuovi l'auto colpita
+            }
+
+            // Rimuovi se fuori schermo
+            if (en.y > canvas.height) enemies.splice(index, 1);
+        });
+
+        distance += speed / 10000;
+        offset += speed * 0.5;
+
+        document.getElementById('speed').innerText = Math.floor(speed);
+        document.getElementById('dist').innerText = distance.toFixed(2);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Erba
+        ctx.fillStyle = "#1a5e1a";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Strada
+        const centerX = canvas.width / 2;
+        ctx.fillStyle = "#333";
+        ctx.fillRect(centerX - roadW / 2, 0, roadW, canvas.height);
+
+        // Linee corsia (tratteggiate)
+        ctx.strokeStyle = "#777";
+        ctx.setLineDash([30, 60]);
+        ctx.lineDashOffset = -offset;
+        ctx.lineWidth = 4;
+        
+        ctx.beginPath();
+        ctx.moveTo(centerX - laneW / 2, 0); ctx.lineTo(centerX - laneW / 2, canvas.height);
+        ctx.moveTo(centerX + laneW / 2, 0); ctx.lineTo(centerX + laneW / 2, canvas.height);
+        ctx.stroke();
+
+        // Bordo strada
+        ctx.setLineDash([]);
+        ctx.strokeStyle = "#fff";
+        ctx.strokeRect(centerX - roadW / 2, -10, roadW, canvas.height + 20);
+
+        // Disegna Entità
+        enemies.forEach(en => drawCar(en, en.color));
+        drawCar(player, player.color);
+
+        update();
+        requestAnimationFrame(draw);
+    }
+
+    draw();
+</script>
+
+</body>
+</html>
